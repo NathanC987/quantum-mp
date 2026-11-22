@@ -1,0 +1,12 @@
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+torch
+qiskit>=2.0
+qiskit-aer
+pylatexenc
+fastapi
+uvicorn
+python-pptx

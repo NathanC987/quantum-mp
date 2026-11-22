@@ -1,0 +1,14 @@
+# IEEE conference template (reference only)
+IEEE_Conference_Template__3_/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# LaTeX build artefacts
+paper/build.log
+*.aux
+*.log
+*.out
+*.synctex.gz
