@@ -23,13 +23,18 @@ uvicorn app.server:app --port 8000         # dashboard at http://localhost:8000
 ```
 
 ## Dashboard
-* **Overview**: the pipeline, which stages are classical and which are quantum, and what each symbol means.
-* **Congestion prediction**: move the hour, day type, temperature and weather controls. You get the VQC decision, the
-  probability from every model, its latency, and the measured 16-outcome distribution.
-* **Route optimisation**: real demands for the chosen hour, solved by QAOA (p = 1–3), exact search and greedy search,
-  plus the classical safety check on the emergency stream.
-* **Error correction**: logical error rate of each code at any physical error rate (Qiskit Aer).
-* **Results**: every benchmark from the paper.
+Written for someone who knows nothing about ITS or the dataset. Every prediction is shown next to the real answer.
+1. **The problem**: what ITS is, the I-94 dataset, the "busy hour" question (> 3,340 cars), the four clues, the fair
+   train/test split, the average traffic by hour, a few raw rows, the headline result, and which stages are quantum.
+2. **Check against real data**: the score of every model on all 15,246 test hours (2017–18), a right/wrong breakdown
+   for the quantum model, and a day viewer. Pick any real day (or a random day, or a day with mistakes) to see each
+   hour's real car count, the correct answer, and the quantum and classical predictions with ✓/✗.
+3. **Try it yourself**: set the hour, day type, temperature and weather to get every model's prediction, then compare
+   with the real 2017–18 hours that had the same conditions. The circuit and its 16-outcome readout are in a fold-out.
+4. **Detour planner**: QAOA plan vs the best of all 256 plans (found by exhaustive search), compared stream by stream,
+   with its rank and the ambulance safety check.
+5. **Error correction**: how often a stored value is read back wrong, with and without each code (Qiskit Aer).
+6. **All results**: every benchmark from the paper, each with a one-line explanation.
 
 ## Design choices
 * **Chronological split** (train 2012–16, test 2017–18), so no future hours leak into training.
