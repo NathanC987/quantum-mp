@@ -17,7 +17,7 @@ quantum circuits help, and keeps every other stage classical.
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt            # CPU torch: --index-url https://download.pytorch.org/whl/cpu
 # dataset (UCI #492): place Metro_Interstate_Traffic_Volume.csv in ../data/
-python scripts/run_benchmarks.py           # every experiment -> results/results.json, figures/, models/ (~10 min)
+python scripts/run_benchmarks.py           # every benchmark -> results/results.json, figures/, models/ (~10 min)
 python scripts/run_benchmarks.py --deploy  # reuse the trained models; rerun noise, routing, end-to-end (~3 min)
 python scripts/make_paper_assets.py        # -> ../paper/numbers.tex and figures
 python scripts/make_slides.py              # -> ../slides/QuantumITS.pptx
@@ -37,7 +37,7 @@ Written for someone who knows nothing about ITS or the dataset. Every prediction
    model's P(busy), compared ramp by ramp with the best of all 256 plans. Below that is the ground truth: real 2017–18
    hours with the same conditions, and how much delay the plan would really have saved there.
 4. **Hardware noise**: what is simulated and where, and its effect on the classifier, on P(busy) and on QAOA,
-   with and without mitigation. It also explains why error correction is not used.
+   with and without mitigation.
 5. **All results**: every benchmark from the paper, each with a one-line explanation.
 
 ## How prediction and routing connect

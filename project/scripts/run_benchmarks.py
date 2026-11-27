@@ -1,4 +1,4 @@
-"""Runs every experiment in the paper and writes results/results.json, figures/*.png, models/*.
+"""Runs every benchmark in the paper and writes results/results.json, figures/*.png, models/*.
 
     python scripts/run_benchmarks.py            # full run (~10 min on a laptop CPU)
     python scripts/run_benchmarks.py --quick    # smoke test
@@ -30,7 +30,7 @@ for p in (FIG, RES, MOD):
     p.mkdir(exist_ok=True)
 
 PROPOSED = dict(layers=3, feature_map=False, entangle="ring", scaling=True, ansatz_reps=1)
-BASELINE = dict(layers=1, feature_map=False, entangle="linear", scaling=False, ansatz_reps=2)   # Exp 5 style
+BASELINE = dict(layers=1, feature_map=False, entangle="linear", scaling=False, ansatz_reps=2)   # textbook single-encoding VQC
 COLORS = {"quantum": "#7c3aed", "classical": "#0ea5e9"}
 plt.rcParams.update({"font.size": 10, "axes.spines.top": False, "axes.spines.right": False,
                      "figure.dpi": 150, "savefig.bbox": "tight"})
