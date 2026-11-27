@@ -1,12 +1,18 @@
-"""Alternate-route recommendation as a QUBO, solved with QAOA and classical solvers.
+"""Detour planning driven by the congestion classifier, as a QUBO solved with QAOA and classical solvers.
 
-N traffic streams approach the city. x_i = 1 diverts stream i to the alternate route.
-Delay on each route grows quadratically with its load (a BPR-style congestion curve):
+Corridor model. Traffic reaches the I-94 corridor through N = 8 on-ramps ("streams"). Ramp i carries a fixed
+share s_i of the corridor's traffic (an assumption: the dataset has a single sensor). x_i = 1 sends ramp i's
+traffic on the detour, so the detour carries the share s.x and the highway the rest.
 
-    J(x) = (D - d.x)^2 / C_main + (d.x)^2 / C_alt + tau * d.x + P * x_e
+Delay in one traffic state (volume V in multiples of the busy threshold, highway capacity C):
+    J_state(x) = (V (1 - s.x))^2 / C  +  (V s.x)^2 / C_alt  +  tau V s.x
+(delay on each road grows with the square of its load, a quadratic BPR-style curve; tau = extra detour time).
 
-d = stream demands (veh/h, from real I-94 volumes), D = sum(d), tau = extra detour time per vehicle,
-x_e = the stream carrying an emergency vehicle, which must stay on the (cleared) main route.
+Coupling to the classifier. The classifier gives P = P(busy) for the coming hour, and the plan minimises the
+expected delay
+    J(x) = P J_busy(x) + (1 - P) J_quiet(x)  +  pen x_e
+with V_busy, V_quiet = mean volume of busy / not-busy training hours and C_busy < C_quiet (a busy highway is
+near capacity). x_e is a ramp carrying an emergency vehicle, which must stay on the cleared highway.
 J is quadratic in binary x, i.e. a QUBO  J(x) = x^T Q x + const.
 """
 import itertools
@@ -15,20 +21,58 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 
+SHARES = np.array([0.20, 0.17, 0.15, 0.13, 0.11, 0.09, 0.08, 0.07])   # share of corridor traffic per ramp (assumed)
+C_BUSY, C_QUIET, C_ALT, TAU = 1.0, 3.0, 0.6, 0.8                      # capacities and detour time (threshold units)
 
-def make_instance(demands, emergency=0, main_cap=0.55, alt_cap=0.35, tau=0.15, penalty=2.0):
-    d = np.asarray(demands, float)
-    D = d.sum()
-    dn = d / D                                                  # work with load shares (scale-free)
-    a = 1 / main_cap + 1 / alt_cap
-    Q = a * np.outer(dn, dn)                                    # quadratic part
-    lin = -2 * dn / main_cap + tau * dn                         # linear part
-    lin[emergency] += penalty
-    Q = np.triu(Q + Q.T) - np.diag(np.diag(Q))                  # upper-triangular, off-diagonal doubled
-    Q[np.diag_indices_from(Q)] = np.diag(a * np.outer(dn, dn)) + lin   # x_i^2 = x_i
-    const = 1 / main_cap
-    return dict(Q=Q, const=const, demands=d, emergency=emergency, n=len(d),
-                main_cap=main_cap, alt_cap=alt_cap, tau=tau, penalty=penalty)
+
+def typical_volumes(train_volume, threshold):
+    """V_busy, V_quiet: mean volume of busy and not-busy training hours, in multiples of the threshold."""
+    v = np.asarray(train_volume, float) / threshold
+    return float(v[v > 1].mean()), float(v[v <= 1].mean())
+
+
+def state_cost(X, volume, capacity, shares=SHARES):
+    """J_state for plans X (rows of 0/1), straight from the traffic model."""
+    a = volume * (np.atleast_2d(X) @ shares)
+    return (volume - a) ** 2 / capacity + a ** 2 / C_ALT + TAU * a
+
+
+def best_plans(P, v_busy, v_quiet, gate=True):
+    """Exact best plan (a row of all_bitstrings(8)) for every P(busy), vectorised over many hours.
+    gate: the classical decision layer releases detours only when P > 0.5."""
+    X = all_bitstrings(len(SHARES))
+    Jb, Jq = state_cost(X, v_busy, C_BUSY), state_cost(X, v_quiet, C_QUIET)
+    P = np.atleast_1d(np.asarray(P, float))
+    idx = np.argmin(P[:, None] * Jb[None] + (1 - P[:, None]) * Jq[None], axis=1)
+    if gate:
+        idx[P <= 0.5] = 0
+    return X[idx]
+
+
+def realised_all(volume, busy):
+    """Delay of every one of the 256 plans for each hour, given the real volume (threshold units) and state."""
+    X = all_bitstrings(len(SHARES))
+    V = np.atleast_1d(np.asarray(volume, float))[:, None]
+    cap = np.where(np.atleast_1d(busy), C_BUSY, C_QUIET)[:, None]
+    a = V * (X @ SHARES)[None]
+    return (V - a) ** 2 / cap + a ** 2 / C_ALT + TAU * a
+
+
+def make_instance(p_busy, v_busy, v_quiet, emergency=None, shares=SHARES):
+    s = np.asarray(shares, float)
+    P = float(p_busy)
+    terms = [(P, v_busy, C_BUSY), (1 - P, v_quiet, C_QUIET)]
+    const = sum(w * V ** 2 / C for w, V, C in terms)                     # J(no detour)
+    A = sum(w * V ** 2 * (1 / C + 1 / C_ALT) for w, V, C in terms)       # coefficient of (s.x)^2
+    L = sum(w * (-2 * V ** 2 / C + TAU * V) for w, V, C in terms)        # coefficient of s.x
+    Q = A * np.outer(s, s)
+    Q = np.triu(Q + Q.T) - np.diag(np.diag(Q))                           # upper-triangular, off-diagonal doubled
+    Q[np.diag_indices_from(Q)] = A * s ** 2 + L * s                      # x_i^2 = x_i
+    penalty = 1.0 + 2 * const                                            # larger than any possible saving
+    if emergency is not None:
+        Q[emergency, emergency] += penalty
+    return dict(Q=Q, const=const, shares=s, n=len(s), p_busy=P, v_busy=v_busy, v_quiet=v_quiet,
+                emergency=emergency, penalty=penalty)
 
 
 def all_bitstrings(n):
@@ -42,11 +86,17 @@ def qubo_cost(inst, X):
 
 def direct_cost(inst, X):
     """J(x) computed straight from the traffic model (used to verify the QUBO matrix)."""
-    X = np.atleast_2d(X)
-    dn = inst["demands"] / inst["demands"].sum()
-    alt = X @ dn
-    return ((1 - alt) ** 2 / inst["main_cap"] + alt ** 2 / inst["alt_cap"] + inst["tau"] * alt
-            + inst["penalty"] * X[:, inst["emergency"]])
+    X = np.atleast_2d(X); P = inst["p_busy"]
+    J = (P * state_cost(X, inst["v_busy"], C_BUSY, inst["shares"])
+         + (1 - P) * state_cost(X, inst["v_quiet"], C_QUIET, inst["shares"]))
+    if inst["emergency"] is not None:
+        J = J + inst["penalty"] * X[:, inst["emergency"]]
+    return J
+
+
+def realised_cost(X, volume, busy, shares=SHARES):
+    """Delay a plan really causes, given the hour's real volume (threshold units) and real state."""
+    return state_cost(X, volume, C_BUSY if busy else C_QUIET, shares)
 
 
 def ising(inst):
@@ -110,6 +160,34 @@ def run_qaoa(inst, p=1, restarts=4, seed=0):
                 p_opt=float(probs[np.isclose(costs, opt)].sum()),
                 p_near=float(probs[c <= 0.02].sum()),                # plans within 2% of the optimum
                 best_sample=X[np.argmax(probs)], n_evals=best.nfev)
+
+
+def qaoa_circuit(inst, gammas, betas, measure=True):
+    """Qiskit version of qaoa_state, with the cost normalised exactly as in run_qaoa. Qubit i = ramp i."""
+    from qiskit import QuantumCircuit
+    n = inst["n"]
+    costs = qubo_cost(inst, all_bitstrings(n)); scale = costs.max() - costs.min()
+    h, J, _ = ising(inst)
+    qc = QuantumCircuit(n)
+    qc.h(range(n))
+    for g, b in zip(gammas, betas):
+        for i in range(n):
+            qc.rz(2 * g * h[i] / scale, i)                              # exp(-i g h_i Z_i / scale)
+        for i, j in itertools.combinations(range(n), 2):
+            if abs(J[i, j]) > 1e-12:
+                qc.rzz(2 * g * J[i, j] / scale, i, j)                   # exp(-i g J_ij Z_i Z_j / scale)
+        qc.rx(2 * b, range(n))                                          # mixer exp(-i b X)
+    if measure:
+        qc.measure_all()
+    return qc
+
+
+def counts_to_plans(counts, n):
+    """Qiskit counts -> (plans X, probabilities). Qiskit keys are little-endian: the last character is qubit 0."""
+    keys = list(counts)
+    X = np.array([[int(k.replace(" ", "")[n - 1 - q]) for q in range(n)] for k in keys], float)
+    w = np.array([counts[k] for k in keys], float)
+    return X, w / w.sum()
 
 
 def sample_plan(qaoa, shots=256, seed=0):

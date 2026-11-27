@@ -16,7 +16,7 @@ R = json.loads((ROOT / "results" / "results.json").read_text())
 # ---------- pipeline figure ----------
 fig, ax = plt.subplots(figsize=(7.2, 1.55)); ax.axis("off"); ax.set_xlim(0, 8); ax.set_ylim(0, 1.6)
 stages = [("Sensors &\nweather", "c"), ("Clean +\nfeatures", "c"), ("Encode\n$R_Y(w x)$", "q"), ("Ansatz\n$U(\\theta)$ ×L", "q"),
-          ("Measure\n$\\langle Z_0\\rangle$", "q"), ("Decide\n$\\sigma(a\\langle Z\\rangle+b)$", "c"), ("QAOA\nroutes", "q"),
+          ("Measure\n$\\langle Z_0\\rangle$", "q"), ("$P$(busy),\ngate $P>0.5$", "c"), ("QAOA detours\nQUBO$(P)$", "q"),
           ("Check +\nactuate", "c")]
 col = {"q": ("#ede9fe", "#7c3aed"), "c": ("#e0f2fe", "#0284c7")}
 for i, (t, k) in enumerate(stages):
@@ -29,7 +29,7 @@ ax.add_patch(FancyBboxPatch((2.0, 0.05), 3.0, 0.18, boxstyle="round,pad=0.01", f
 ax.text(3.5, 0.14, "hybrid loop: Adam updates θ, w, a, b", color="white", ha="center", va="center", fontsize=6.5)
 fig.savefig(PAPER / "pipeline.png", dpi=300, bbox_inches="tight"); plt.close(fig)
 
-for f in ["learning_curve", "ablation", "noise", "qaoa", "qec", "circuit"]:
+for f in ["learning_curve", "ablation", "noise", "qaoa", "endtoend", "circuit"]:
     shutil.copy(ROOT / "figures" / f"{f}.png", PAPER / f"{f}.png")
 
 # ---------- numbers ----------
@@ -39,8 +39,7 @@ acc, acc_sd, auc, f1, rec = (g.acc.mean(), g.acc.std(), g.auc.mean(), g.f1.mean(
 fit_s = g.fit_s.mean()
 abl = pd.DataFrame(R["ablation"]).groupby("variant", sort=False)
 qa = pd.DataFrame(R["qaoa"]).groupby("method", sort=False).mean(numeric_only=True)
-qe = pd.DataFrame(R["qec"]).set_index("p")
-nz = pd.DataFrame(R["noise"]).set_index("p2")
+nz = pd.DataFrame(R["noise"]).set_index("level")
 lat = R["latency"]; d = R["dataset"]
 
 M = {}
@@ -62,14 +61,35 @@ for i, v in enumerate(a.index):
     k = "abl" + "ABCDEFGHIJKLMN"[i]
     put(k, f"{a[v]:.3f}"); put(k + "sd", f"{asd[v]:.3f}"); put(k + "p", f"{pn[v]}")
 put("noiseIdeal", f"{R['noise_ideal_acc']:.3f}")
-for p2, tag in [(0.005, "A"), (0.01, "B"), (0.02, "C"), (0.05, "D")]:
-    put(f"noiseRaw{tag}", f"{nz.loc[p2, 'acc_raw']:.3f}"); put(f"noiseMit{tag}", f"{nz.loc[p2, 'acc_mitigated']:.3f}")
-    put(f"shrink{tag}", f"{nz.loc[p2, 'shrink']:.2f}")
-    put(f"probErrRaw{tag}", f"{nz.loc[p2, 'prob_err_raw']:.3f}"); put(f"probErrMit{tag}", f"{nz.loc[p2, 'prob_err_mitigated']:.3f}")
+TAGS = [(0, "Zero"), (0.5, "Half"), (1, "One"), (2, "Two"), (4, "Four")]
+for lv, tag in TAGS:
+    r = nz.loc[lv]
+    put(f"nzAcc{tag}", f"{r['acc_raw']:.3f}"); put(f"nzMit{tag}", f"{r['acc_mitigated']:.3f}")
+    put(f"nzShrink{tag}", f"{r['shrink']:.2f}"); put(f"nzRo{tag}", f"{100 * r['readout_err']:.1f}")
+    put(f"nzErrRaw{tag}", f"{r['prob_err_raw']:.3f}"); put(f"nzErrRo{tag}", f"{r['prob_err_readout']:.3f}")
+    put(f"nzErrMit{tag}", f"{r['prob_err_mitigated']:.3f}")
+    put(f"nzSaveRaw{tag}", f"{100 * r['saving_raw']:.1f}"); put(f"nzSaveMit{tag}", f"{100 * r['saving_mitigated']:.1f}")
+qn = pd.DataFrame(R["qaoa_noise"]).groupby("level").mean(numeric_only=True)
+for lv, tag in TAGS:
+    put(f"qnAr{tag}", f"{qn.loc[lv, 'approx_ratio']:.3f}"); put(f"qnPopt{tag}", f"{100 * qn.loc[lv, 'p_opt']:.2f}")
+loop = pd.DataFrame(R["qaoa_in_loop"])
+put("loopN", len(loop)); put("loopSameIdeal", f"{100 * loop.same_ideal.mean():.0f}"); put("loopSameNoisy", f"{100 * loop.same_noisy.mean():.0f}")
+put("loopDiff", f"{max(0.1, 100 * abs(loop.extra_noisy.sum()) / loop.exact.sum()):.1f}")
+ee = pd.DataFrame(R["endtoend"]).set_index("policy")
+for pol, tag in [("Always plan for busy", "Always"), ("Re-uploading VQC (ours)", "Ours"), ("MLP (16-16)", "MLP"),
+                 ("Random forest", "RF"), ("Correct label (perfect classifier)", "Label"), ("Best possible (knows the real traffic)", "Best")]:
+    put(f"ee{tag}", f"{100 * ee.loc[pol, 'share_of_possible']:.1f}"); put(f"eeSaved{tag}", f"{100 * ee.loc[pol, 'saved']:.1f}")
+    put(f"eeHrs{tag}", f"{ee.loc[pol, 'hours_with_detours']:,}".replace(",", "{,}"))
+put("eeHours", f"{R['endtoend_hours']:,}".replace(",", "{,}"))
+rt = R["routing"]; thr = d["threshold"]
+put("vBusy", f"{rt['v_busy'] * thr:,.0f}".replace(",", "{,}")); put("vQuiet", f"{rt['v_quiet'] * thr:,.0f}".replace(",", "{,}"))
+put("vBusyU", f"{rt['v_busy']:.2f}"); put("vQuietU", f"{rt['v_quiet']:.2f}")
+put("qaoaCx", R["qaoa_circuit"]["cx"]); put("qaoaDepth", R["qaoa_circuit"]["depth"])
 sh = pd.DataFrame(R["shots"]).set_index("shots")
 put("shotsSixteen", f"{sh.loc[16, 'acc']:.3f}"); put("shotsK", f"{sh.loc[1024, 'acc']:.3f}")
 names = {"Preprocessing (classical)": "Pre", "VQC – exact simulator": "Vqc", "VQC – Qiskit Aer, 1024 shots": "Aer",
-         "Quantum-kernel SVM": "Qk", "Random forest": "Rf", "MLP": "Mlp"}
+         "VQC – noisy device, 1024 shots": "Noisy", "Quantum-kernel SVM": "Qk", "Random forest": "Rf", "MLP": "Mlp",
+         "Detour plan – exact (classical)": "Exact", "Detour plan – QAOA p=1 (simulated)": "Qaoa"}
 for k, s in names.items():
     put(f"lat{s}", f"{lat[k]['median_ms']:.2f}"); put(f"latp{s}", f"{lat[k]['p95_ms']:.2f}")
 put("depth", R["circuit"]["depth"]); put("ncx", R["circuit"]["cx"]); put("nparams", R["circuit"]["n_params"])
@@ -82,11 +102,6 @@ for m, s in [("Random guess (p=0)", "R"), ("QAOA p=1", "One"), ("QAOA p=2", "Two
         put(f"gap{s}", f"{100 * qa.loc[m, 'gap']:.2f}"); put(f"ms{s}", f"{qa.loc[m, 'ms']:.0f}")
 for m, s in [("Exact enumeration", "Ex"), ("Greedy", "Gr"), ("Simulated annealing", "Sa")]:
     put(f"gap{s}", f"{100 * qa.loc[m, 'gap']:.2f}"); put(f"ms{s}", f"{qa.loc[m, 'ms']:.2f}")
-for p, tag in [(0.001, "A"), (0.01, "B"), (0.05, "C"), (0.12, "D")]:
-    for c, s in [("unprotected", "U"), ("bit_flip", "B"), ("phase_flip", "P"), ("shor", "S")]:
-        put(f"qec{s}{tag}", f"{qe.loc[p, c]:.4f}")
-put("shorGain", f"{qe.loc[0.01, 'unprotected'] / max(qe.loc[0.01, 'shor'], 1e-6):.0f}")
-
 (PAPER / "numbers.tex").write_text("% auto-generated by project/scripts/make_paper_assets.py\n" +
                                    "\n".join(f"\\newcommand{{\\{k}}}{{{v}}}" for k, v in M.items()) + "\n")
 print(f"{len(M)} macros written; ablation order:", list(a.index))

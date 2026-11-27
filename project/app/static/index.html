@@ -15,10 +15,9 @@
   <nav id="tabs">
     <button data-tab="start" class="active"><i>1</i>The problem</button>
     <button data-tab="check"><i>2</i>Check against real data</button>
-    <button data-tab="predict"><i>3</i>Try it yourself</button>
-    <button data-tab="route"><i>4</i>Detour planner</button>
-    <button data-tab="qec"><i>5</i>Error correction</button>
-    <button data-tab="results"><i>6</i>All results</button>
+    <button data-tab="predict"><i>3</i>Predict &amp; plan</button>
+    <button data-tab="noise"><i>4</i>Hardware noise</button>
+    <button data-tab="results"><i>5</i>All results</button>
   </nav>
 </header>
 
@@ -29,11 +28,12 @@
       <h1>Will the highway be busy this hour?<br><span>We trained a quantum computer program to answer, and checked it against what really happened.</span></h1>
       <p>Cities run <b>Intelligent Transportation Systems (ITS)</b>: computers that read road sensors and then change traffic
         lights, warn drivers and suggest detours. To act <i>before</i> a jam forms, the system has to predict traffic.
-        This project tests whether a small <b>quantum</b> program can make that prediction as well as ordinary (classical)
-        machine learning, fast enough to use (under one second).</p>
+        This project tests whether small <b>quantum</b> programs can (1) predict whether the highway will be busy and
+        (2) use that prediction to decide which on-ramps to send on a detour, as well as ordinary (classical) computing and
+        fast enough to use (under one second). Every answer is checked against what really happened.</p>
     </div>
 
-    <h2>The problem in four steps</h2>
+    <h2>The problem in five steps</h2>
     <div class="steps">
       <div class="step"><div class="num">1</div><h3>The road</h3>
         <p>A sensor on the <b>I-94 highway</b> between Minneapolis and St&nbsp;Paul (USA) counted the cars passing each hour,
@@ -50,6 +50,10 @@
       <div class="step"><div class="num">4</div><h3>The fair test</h3>
         <p>The models learn from <b>2012–2016</b>. They are then tested on <b><span id="nTest">15,246</span> hours from 2017–2018</b>
           that they have never seen, and each answer is compared with the real car count.</p></div>
+      <div class="step"><div class="num">5</div><h3>From prediction to detours</h3>
+        <p>Cars join the highway at <b>8 on-ramps</b>. If the hour is predicted busy, the city can tell drivers at some ramps
+          to take a <b>detour</b> road instead. The <b>chance of “busy”</b> from step 2 decides how many ramps to divert.</p>
+        <p class="muted">Each plan is scored by the delay it would really have caused in that hour.</p></div>
     </div>
 
     <div class="grid2">
@@ -74,17 +78,16 @@
       <div class="stage q"><b>4. Quantum circuit</b><span>50 adjustable settings, learned from 2012–16 data</span></div>
       <div class="stage q"><b>5. Measure</b><span>Read qubit 0</span></div>
       <div class="stage c"><b>6. Decide</b><span>Turn the reading into a chance of “busy”</span></div>
-      <div class="stage q"><b>7. Plan detours</b><span>Quantum search for the best plan (QAOA)</span></div>
+      <div class="stage q"><b>7. Plan detours</b><span>Uses the chance of “busy”; quantum search for the best plan (QAOA)</span></div>
       <div class="stage c"><b>8. Act</b><span>Re-time lights, send route advice</span></div>
     </div>
-    <div class="legend"><span class="dot c"></span>ordinary (classical) computer <span class="dot q"></span>quantum computer (simulated)</div>
+    <div class="legend"><span class="dot c"></span>ordinary (classical) computer <span class="dot q"></span>quantum computer (simulated, with and without hardware noise)</div>
 
     <h2>How to read this dashboard</h2>
     <ol class="guide">
       <li><a href="#check">Check against real data</a>: pick any real day from 2017–18 and see each hour’s prediction next to the real car count.</li>
-      <li><a href="#predict">Try it yourself</a>: set your own conditions, get a prediction, and see what happened in real hours like that.</li>
-      <li><a href="#route">Detour planner</a>: the quantum algorithm decides which groups of cars to send on a detour, and we check it against the best possible plan.</li>
-      <li><a href="#qec">Error correction</a>: real quantum chips make mistakes. This shows how spreading one qubit over several protects the answer.</li>
+      <li><a href="#predict">Predict &amp; plan</a>: set one set of conditions; see the prediction, the detour plan built from it, and what happened in real hours like that.</li>
+      <li><a href="#noise">Hardware noise</a>: real quantum chips make mistakes in gates, while waiting, and when reading out. This shows how much that hurts, and how we correct for it.</li>
       <li><a href="#results">All results</a>: the full comparison from the research paper.</li>
     </ol>
 
@@ -129,34 +132,44 @@
       <div class="legend"><span class="dot ok"></span>quantum model correct <span class="dot bad"></span>quantum model wrong
         <span class="dash"></span>busy line (3,340 cars)</div>
       <div class="tablewrap"><table class="models daytable" id="dayTable"></table></div>
+      <p class="muted">Detour column: the 8 on-ramps, ● = sent on the detour by our plan (built from the quantum model’s chance of “busy”),
+        ○ = stays on the highway. “Delay” (in the units of the traffic model, lower is better) compares the delay our plan really caused that hour with no detours at all and with the best possible plan.</p>
     </div>
   </section>
 
-  <!-- ================= 3. TRY IT YOURSELF ================= -->
+  <!-- ================= 3. PREDICT & PLAN (one input for both) ================= -->
   <section id="predict" class="tab">
-    <div class="intro">Choose any conditions. The models predict whether that hour will be busy. Below, we look up
-      <b>real 2017–18 hours with the same conditions</b> to show what actually happened.</div>
-    <div class="grid2">
-      <div class="card">
-        <h3>Conditions</h3>
-        <label>🕒 Hour of day <output id="hourOut">17:00</output></label>
-        <input type="range" id="hour" min="0" max="23" value="17">
-        <label>📅 Day type</label>
-        <div class="seg" id="dayType"><button data-v="0" class="on">Weekday</button><button data-v="1">Weekend / holiday</button></div>
-        <label>🌡️ Temperature <output id="tempOut">15 °C</output></label>
-        <input type="range" id="temp" min="-25" max="35" value="15">
-        <label>🌧️ Weather</label>
+    <div class="intro">One set of conditions drives everything on this page. The quantum model predicts the chance that the hour will be
+      busy; if it says <b>Busy</b>, that chance is used to plan which on-ramps to send on a detour. Below, we look up
+      <b>real 2017–18 hours with the same conditions</b> to show what actually happened, and how much delay the plan would really have saved.</div>
+
+    <div class="card controls inputs">
+      <div><label>🕒 Hour of day <output id="hourOut">17:00</output></label><input type="range" id="hour" min="0" max="23" value="17"></div>
+      <div><label>📅 Day type</label>
+        <div class="seg" id="dayType"><button data-v="0" class="on">Weekday</button><button data-v="1">Weekend / holiday</button></div></div>
+      <div><label>🌡️ Temperature <output id="tempOut">15 °C</output></label><input type="range" id="temp" min="-25" max="35" value="15"></div>
+      <div><label>🌧️ Weather</label>
         <select id="weather">
           <option value="0">Clear</option><option value="1" selected>Clouds</option>
           <option value="2">Mist / fog / haze / drizzle</option><option value="3">Rain</option><option value="4">Snow / thunderstorm</option>
-        </select>
-      </div>
+        </select></div>
+      <div><label>🚑 Ambulance at on-ramp</label><select id="emerg"></select></div>
+      <div><label>⚛️ Quantum hardware</label>
+        <select id="hw"><option value="0">Ideal (no noise)</option><option value="1">Noisy, like today’s chips</option><option value="2">Noisy, twice as bad</option></select></div>
+      <div><label>QAOA depth p</label><div class="seg" id="rP"><button data-v="1">1</button><button data-v="2" class="on">2</button><button data-v="3">3</button></div></div>
+    </div>
+
+    <div class="grid2">
       <div class="card">
-        <h3>Prediction of the quantum model</h3>
+        <h3>Step 1 · Will this hour be busy?</h3>
         <div class="decision" id="decision">—</div>
-        <p class="action" id="action"></p>
+        <div id="hwNote"></div>
         <table class="models" id="modelTable"></table>
         <p class="muted" id="timing"></p>
+      </div>
+      <div class="card">
+        <h3>Step 2 · Which on-ramps go on the detour?</h3>
+        <div id="plan"></div>
       </div>
     </div>
 
@@ -168,70 +181,68 @@
         The same conditions do not always give the same traffic (an accident, an event, school holidays), so no model can be right every time.</p>
     </div>
 
-    <details class="tech"><summary>Look inside the quantum circuit</summary>
+    <details class="tech"><summary>Look inside the quantum circuits</summary>
       <div class="grid2">
-        <div class="card"><h3>What the 4 qubits read out</h3><canvas id="stateChart" height="180"></canvas>
+        <div class="card"><h3>What the classifier’s 4 qubits read out</h3><canvas id="stateChart" height="180"></canvas>
           <p class="muted">Chance of each of the 16 possible readings |q₀q₁q₂q₃⟩. Only qubit 0 is used for the answer:
             purple bars have q₀ = 0 and red bars have q₀ = 1. ⟨Z₀⟩ = P(q₀=0) − P(q₀=1) is then turned into P(busy).</p>
           <div class="angles" id="angles"></div></div>
-        <div class="card"><h3>The circuit (one of its 3 repeated layers)</h3><img src="/figures/circuit.png" class="circuit" alt="VQC circuit">
+        <div class="card"><h3>The classifier circuit (one of its 3 repeated layers)</h3><img src="/figures/circuit.png" class="circuit" alt="VQC circuit">
           <p class="muted">R<sub>Y</sub>(w·x) gates load the clues (encoding); the RZ·RY·RZ gates hold the learned settings θ;
             the CNOTs link the qubits in a ring (entanglement) so the clues can interact.</p></div>
       </div>
-    </details>
-  </section>
-
-  <!-- ================= 4. DETOUR PLANNER ================= -->
-  <section id="route" class="tab">
-    <div class="intro">When the highway is busy, the city can send some groups of cars (“streams”) on a <b>detour</b>.
-      Send too few and the highway jams; send too many and the detour jams. A stream carrying an ambulance 🚑 must stay
-      on the cleared highway. With 8 streams there are 2⁸ = <b>256 possible plans</b>. A quantum algorithm (<b>QAOA</b>)
-      searches for the plan with the least total delay. Because 256 is small, an ordinary computer can also check every
-      plan, which gives the <b>correct answer</b> to compare the quantum plan with.</div>
-    <div class="card controls">
-      <div><label>Hour (sets how many cars) <output id="rHourOut">17:00</output></label><input type="range" id="rHour" min="0" max="23" value="17"></div>
-      <div><label>Ambulance is in</label><select id="rEmerg"></select></div>
-      <div><label>Quantum circuit depth p</label><div class="seg" id="rP"><button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="3">3</button></div></div>
-      <div><label>Traffic</label><button id="rNew" class="ghost">New random traffic ↻</button></div>
-      <button id="rRun" class="primary">Plan detours</button>
-    </div>
-    <div class="grid2">
-      <div class="card"><h3>Quantum plan vs the best possible plan</h3><div id="plan"></div></div>
-      <div class="card"><h3>Plans the quantum algorithm suggests most often</h3><canvas id="qaoaChart" height="230"></canvas>
+      <div class="card"><h3>Plans the QAOA circuit outputs most often</h3><div class="chartbox"><canvas id="qaoaChart"></canvas></div>
         <p class="muted" id="qaoaInfo"></p></div>
-    </div>
-    <details class="tech"><summary>Technical notes: how the problem becomes a QUBO</summary>
-      <div class="card"><p class="formula">J(x) = (D − d·x)² / C<sub>main</sub> + (d·x)² / C<sub>alt</sub> + τ·d·x + P·x<sub>e</sub></p>
-        <p class="muted">x<sub>i</sub> = 1 sends stream i on the detour; d<sub>i</sub> is its number of cars (taken from real I-94 counts at that hour), D the total.
-          The first two terms are the delay on each road, which grows with the square of its load; τ is the extra time of the detour;
-          P is a penalty that keeps the ambulance stream x<sub>e</sub> on the highway. J is quadratic in the 0/1 variables x, so it is a QUBO.
-          Substituting x<sub>i</sub> = (1−Z<sub>i</sub>)/2 gives the cost Hamiltonian H<sub>C</sub> that QAOA minimises.
-          A classical check validates every plan before it is released.</p></div>
+      <div class="card"><h3>How the detour problem becomes a QUBO</h3>
+        <p class="formula">J(x) = P·J<sub>busy</sub>(x) + (1−P)·J<sub>quiet</sub>(x) + pen·x<sub>e</sub>,&nbsp;&nbsp;
+          J<sub>state</sub>(x) = (V(1−s·x))² / C + (V s·x)² / C<sub>alt</sub> + τ V s·x</p>
+        <p class="muted">x<sub>i</sub> = 1 sends on-ramp i to the detour; s<sub>i</sub> is the share of traffic entering at ramp i (assumed, since the
+          dataset has one sensor). P is the quantum classifier’s chance of “busy”. V<sub>busy</sub>, V<sub>quiet</sub> are the average volumes of busy and
+          not-busy training hours, and C<sub>busy</sub> &lt; C<sub>quiet</sub> because a busy highway is near capacity. τ is the extra time of the detour,
+          and the penalty keeps an ambulance’s ramp x<sub>e</sub> on the cleared highway. J is quadratic in the 0/1 variables x, so it is a QUBO;
+          substituting x<sub>i</sub> = (1−Z<sub>i</sub>)/2 gives the cost Hamiltonian that QAOA minimises.</p></div>
     </details>
   </section>
 
-  <!-- ================= 5. ERROR CORRECTION ================= -->
-  <section id="qec" class="tab">
-    <div class="intro">Real quantum chips make mistakes: a qubit can flip on its own (bit-flip, X), get its phase flipped (Z), or both (Y).
-      <b>Error correction</b> spreads one qubit’s information over several qubits so mistakes can be found and undone.
-      Here we store a <b>known</b> value, add random mistakes at the rate you choose, run the correction, and check whether we read back
-      what we stored (the ground truth). The chart shows how often the read-back is <b>wrong</b>.</div>
-    <div class="card controls">
-      <div class="wide"><label>Chance that each physical qubit has a mistake <output id="pOut">2.0%</output></label>
-        <input type="range" id="pErr" min="1" max="200" value="20"></div>
+  <!-- ================= 4. HARDWARE NOISE ================= -->
+  <section id="noise" class="tab">
+    <div class="intro">Real quantum chips make mistakes. We simulate a chip with <b>all three main kinds of error at once</b>, on both quantum
+      parts (the classifier and the detour search), and then correct for them with cheap <b>mitigation</b> steps. The chip’s error rates are
+      scaled by a <b>noise level</b>: 1 = typical of today’s superconducting chips, 2 = twice as noisy, and so on.</div>
+    <div class="grid2">
+      <div class="card"><h3>What is simulated, and where</h3>
+        <table class="models">
+          <tr><th>Error</th><th>Where it happens</th><th>Level 1</th><th>How we handle it</th></tr>
+          <tr><td>Gate errors</td><td>every 1-qubit gate and every CNOT</td><td class="num">0.025% / 0.75%</td><td>rescaling (below)</td></tr>
+          <tr><td>Decay (T1, T2)</td><td>during every gate <i>and</i> while qubits wait</td><td class="num">150 µs / 100 µs</td><td>rescaling</td></tr>
+          <tr><td>Readout errors</td><td>when the qubits are measured</td><td class="num">1.5%</td><td>readout correction</td></tr>
+          <tr><td>Shot noise</td><td>finite number of runs (1,024 / 256)</td><td class="num">—</td><td>enough shots</td></tr>
+        </table>
+        <p class="muted">Qubits are linked in a ring, as on real chips, so the detour circuit needs extra SWAP gates to connect distant qubits
+          (<span id="qaoaCx">—</span> CNOTs after compiling). <b>Readout correction</b>: measure how often a 0 is read as 1 (and the reverse) once, then undo it.
+          <b>Rescaling</b>: gate errors and decay shrink the classifier’s reading towards 0 by a steady factor; we measure that factor on 100 training hours and divide it out.</p></div>
+      <div class="card"><h3>Effect on the classifier</h3>
+        <div class="chartbox"><canvas id="noiseAccChart"></canvas></div>
+        <p class="muted" id="noiseAccInfo"></p></div>
     </div>
     <div class="grid2">
-      <div class="card"><h3>How often the stored value is read back wrong</h3><canvas id="qecChart" height="200"></canvas>
-        <p class="muted" id="qecInfo"></p></div>
-      <div class="card"><h3>What each code costs and protects</h3><table class="models" id="qecTable"></table>
-        <p class="muted">Each mistake is X, Y or Z with equal chance (depolarising noise, simulated with Qiskit Aer, 6,000 runs × 3 test values).
-          The 3-qubit codes fix only one kind of mistake, so with mixed mistakes they can be worse than no code at all.
-          The 9-qubit Shor code fixes all three kinds.</p>
-        <img src="/figures/qec.png" class="fig" alt="QEC curves"></div>
+      <div class="card"><h3>Effect on the chance of “busy” given to the planner</h3>
+        <div class="chartbox"><canvas id="noiseProbChart"></canvas></div>
+        <p class="muted">Average distance between the noisy and the noise-free chance of “busy”. Noise pulls every chance towards 50%,
+          which would make the detour plan too timid; mitigation brings it back.</p></div>
+      <div class="card"><h3>Effect on the detour search (QAOA)</h3>
+        <div class="chartbox"><canvas id="noiseQaoaChart"></canvas></div>
+        <p class="muted" id="noiseQaoaInfo"></p></div>
+    </div>
+    <div class="card"><h3>Why not quantum error correction?</h3>
+      <p>Error correction (Experiments 7 and 8) spreads each qubit over several, e.g. 9 for Shor’s code. For our 4-qubit classifier that is
+        36+ qubits, and its rotation gates by arbitrary angles cannot be applied directly to encoded qubits; that needs fault-tolerant
+        machinery far beyond today’s chips. With noisy gates and readout the correction circuit itself also adds errors. So, like most
+        near-term quantum work, we use <b>error mitigation</b> instead: no extra qubits, a few calibration runs, and a classical correction.</p>
     </div>
   </section>
 
-  <!-- ================= 6. ALL RESULTS ================= -->
+  <!-- ================= 5. ALL RESULTS ================= -->
   <section id="results" class="tab">
     <div class="intro">The full benchmark from the research paper. Accuracy here is measured on 2,000 sampled test hours and averaged over
       3 training runs, so it differs slightly from the all-hours score on page 2.</div>
@@ -244,13 +255,14 @@
           a single layer gets only 56%.</p></div>
     </div>
     <div class="grid2">
-      <div class="card"><h3>Effect of hardware noise and of repeated measurements (shots)</h3><img src="/figures/noise.png" class="fig" alt="noise">
-        <p class="muted">Simulated chip noise lowers accuracy only slowly (still ~92% at 5% two-qubit error). A few hundred shots are enough.</p></div>
+      <div class="card"><h3>Prediction → detours, scored against real traffic (all test hours)</h3><img src="/figures/endtoend.png" class="fig" alt="end to end">
+        <p class="muted">Share of the largest possible delay reduction each way of planning achieves. Plans built from the quantum model’s
+          prediction get almost all of it, level with the classical models; a fixed “always assume busy” plan gets much less.</p></div>
       <div class="card"><h3>Time per prediction vs the 1-second limit</h3><img src="/figures/latency.png" class="fig" alt="latency">
         <p class="muted">Every stage, including the quantum model, answers in milliseconds, far inside the 1-second budget.</p></div>
     </div>
     <div class="grid2">
-      <div class="card"><h3>Detour planning: QAOA vs classical solvers (30 real-traffic cases)</h3><table class="models" id="qaoaTable"></table>
+      <div class="card"><h3>Detour planning: QAOA vs classical solvers (30 busy test hours)</h3><table class="models" id="qaoaTable"></table>
         <p class="muted">⟨r⟩ = approximation ratio (1 = always the best plan). “Gap” = how much worse the best plan found is than the true best.
           At this size, the classical exact search is faster; QAOA is shown to work, not to be faster.</p></div>
       <div class="card"><h3>QAOA quality by circuit depth</h3><img src="/figures/qaoa.png" class="fig" alt="qaoa"></div>

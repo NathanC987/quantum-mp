@@ -88,6 +88,7 @@ def load_dataset(n_test: int = 2000, seed: int = 0):
         df=df, threshold=threshold,
         X_pool=frame_to_angles(train_df), y_pool=train_df["congested"].to_numpy(),
         X_test=frame_to_angles(test_df), y_test=test_df["congested"].to_numpy(),
+        v_test=test_df["traffic_volume"].to_numpy(), train_volume=train_df["traffic_volume"].to_numpy(),
         n_pool=len(train_df), n_test_total=len(df) - len(train_df),
     )
 

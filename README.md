@@ -3,7 +3,7 @@
 | Folder | Contents |
 |---|---|
 | `Exp1…Exp6 *.pdf` | Your experiments 1–6 |
-| `experiments/` | **Exp 7** (3-qubit bit-flip and phase-flip codes) and **Exp 8** (Shor 9-qubit code), as Colab-ready `.ipynb` notebooks with outputs and as `.pdf`. `build_exp*.py` regenerates them |
+| `experiments/` | **Exp 7** (3-qubit bit-flip and phase-flip codes) and **Exp 8** (Shor 9-qubit code), as Colab-ready `.ipynb` notebooks with outputs and as `.pdf`. `build_exp*.py` regenerates them. (Error correction is coursework only; the project uses error mitigation, see the paper.) |
 | `project/` | **QuantumITS**: the full hybrid quantum–classical project (library, benchmarks, web dashboard). See `project/README.md` |
 | `slides/QuantumITS.pptx` | 10-slide presentation |
 | `paper/` | IEEE conference paper (`main.tex` + figures + `numbers.tex`, auto-generated from the results) |

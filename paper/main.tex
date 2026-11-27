@@ -12,7 +12,7 @@
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 \begin{document}
 
-\title{QuantumITS: A Hybrid Quantum--Classical Pipeline for Real-Time Congestion Prediction, Route Optimisation and Error-Protected Inference}
+\title{QuantumITS: A Hybrid Quantum--Classical Pipeline Coupling Congestion Prediction to Detour Planning under Realistic Hardware Noise}
 
 \author{\IEEEauthorblockN{Rushikesh Shembade}
 \IEEEauthorblockA{\textit{Department of Computer Engineering} \\
@@ -30,11 +30,11 @@ Mumbai, India \\
 \maketitle
 
 \begin{abstract}
-A national intelligent transportation system (ITS) must predict congestion and recommend alternate routes within one second. We ask which stages of such a platform can sensibly use a quantum or hybrid approach, and we test the answer end-to-end on real data: 48k hourly records of I-94 traffic volume and weather (UCI). Three small quantum modules sit inside an otherwise classical pipeline. A 4-qubit \emph{data re-uploading} variational quantum classifier (VQC) with cyclic angle encoding and trainable input scaling predicts congestion. A QUBO solved by the quantum approximate optimisation algorithm (QAOA) chooses which traffic streams to divert. Shor's 9-qubit code protects a quantum output against hardware noise. On a chronological train/test split (2012--16 / 2017--18), the VQC reaches \accOursM{} accuracy with 1000 training samples, level with tuned classical baselines (random forest \accRFM{}, MLP \accMLPM{}), whereas a standard single-encoding VQC reaches \accStdM{} and a quantum-kernel SVM \accQKM{}. Ablations show that re-uploading and trainable input scaling matter far more than an entangling ZZ feature map, which lowers accuracy. Under depolarising CNOT noise of 2\% the classifier keeps \noiseRawC{} accuracy, a one-parameter rescaling restores its calibrated probabilities, and inference takes \latVqc{}~ms on a simulator. QAOA raises the approximation ratio from \arR{} (random) to \arFour{} at depth 4, but exact classical search over the same 8-variable problems takes under a millisecond. Under depolarising noise only Shor's code beats an unprotected qubit: \shorGain$\times$ fewer logical errors at $p=1\%$. We conclude that quantum modules can match, but not yet beat, classical ones at this scale, and should run as benchmarked components behind classical decision and safety layers.
+A national intelligent transportation system (ITS) must predict congestion and recommend alternate routes within one second. We ask which stages of such a platform can sensibly use a quantum or hybrid approach, and we test the answer end-to-end on real data: 48k hourly records of I-94 traffic volume and weather (UCI). Two small quantum modules sit inside an otherwise classical pipeline, and the first feeds the second. A 4-qubit \emph{data re-uploading} variational quantum classifier (VQC) with cyclic angle encoding and trainable input scaling predicts the probability $P$ that the coming hour is congested. A classical gate releases detours only when $P>0.5$; the detour plan for 8 on-ramps is then a QUBO whose expected-delay cost is weighted by $P$, solved with the quantum approximate optimisation algorithm (QAOA). On a chronological split (2012--16 / 2017--18) the VQC reaches \accOursM{} accuracy with 1000 training samples, level with tuned classical baselines (random forest \accRFM{}, MLP \accMLPM{}); a standard single-encoding VQC reaches \accStdM{}. Scored against the traffic that really occurred in all \eeHours{} test hours, plans built from the VQC's prediction achieve \eeOurs\% of the largest possible delay reduction, versus \eeAlways\% for a fixed plan and \eeLabel\% for a perfect classifier. Both quantum modules are also run on a simulated device with gate errors, $T_1/T_2$ decoherence (including idle time) and readout errors. At error rates typical of current superconducting chips the classifier keeps \nzMitOne{} accuracy, and readout correction plus a one-parameter rescaling cut the error of $P$ from \nzErrRawOne{} to \nzErrMitOne. QAOA is hit harder: its approximation ratio drops from \qnArZero{} to \qnArOne, close to random sampling (\arR). Quantum modules can match, but not yet beat, classical ones at this scale, and should run as benchmarked components behind classical decision and safety layers.
 \end{abstract}
 
 \begin{IEEEkeywords}
-quantum machine learning, variational quantum classifier, data re-uploading, QAOA, QUBO, quantum error correction, intelligent transportation systems, traffic prediction
+quantum machine learning, variational quantum classifier, data re-uploading, QAOA, QUBO, error mitigation, intelligent transportation systems, traffic prediction
 \end{IEEEkeywords}
 
 %=====================================================================
@@ -47,14 +47,15 @@ We answer this question with a complete, reproducible hybrid pipeline (Fig.~\ref
 \begin{enumerate}
 \item A clear separation of the pipeline into classical stages (ingestion, cleaning, decision, actuation) and quantum stages (encoding, feature map, variational model, measurement). Each symbol of the conceptual QML sequence is interpreted for the ITS case (Table~\ref{tab:symbols}).
 \item A 4-qubit data re-uploading VQC~\cite{perez2020reuploading} for congestion prediction. Cyclic angle encoding places the hour of day on a single qubit. On a leakage-free chronological split this model matches tuned classical baselines. Ablations isolate which design choices matter.
-\item A QUBO formulation of alternate-route recommendation with a congestion-dependent (BPR-style) delay and an emergency-vehicle constraint, solved with QAOA~\cite{farhi2014qaoa} and compared against exact, greedy and annealing solvers.
-\item A deployment study covering depolarising gate noise, a one-parameter readout rescaling, shot budget, latency against the 1-s requirement, and protection of a quantum output with 3-qubit and Shor 9-qubit codes~\cite{shor1995scheme}.
+\item A detour-planning QUBO that is \emph{driven by the classifier}: its cost is the expected delay under the predicted congestion probability, with a congestion-dependent (BPR-style) delay and an emergency-vehicle constraint. It is solved with QAOA~\cite{farhi2014qaoa} and compared against exact, greedy and annealing solvers.
+\item An end-to-end evaluation that scores every plan by the delay it would really have caused, given the traffic that actually occurred in each of the \eeHours{} test hours.
+\item A deployment study on a simulated device with gate errors, $T_1/T_2$ decoherence (also while idle) and readout errors, applied to both quantum modules, with matching error mitigation, plus shot budget and latency against the 1-s requirement.
 \end{enumerate}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.92\textwidth]{pipeline.png}
-\caption{QuantumITS pipeline. Blue: classical stages; purple: quantum or hybrid stages. Only encoding, the variational model, measurement and the QAOA sampler run on quantum hardware. Decisions, feasibility checks and actuation stay classical for safety.}
+\caption{QuantumITS pipeline. Blue: classical stages; purple: quantum or hybrid stages. The classifier's probability $P$ is passed to a classical gate and, for hours predicted congested, sets the cost of the detour QUBO solved by QAOA. Decisions, feasibility checks and actuation stay classical for safety.}
 \label{fig:pipeline}
 \end{figure*}
 
@@ -66,7 +67,7 @@ We answer this question with a complete, reproducible hybrid pipeline (Fig.~\ref
 
 \textbf{Classical traffic prediction.} Deep learning is the classical state of the art for traffic-flow prediction~\cite{lv2015traffic}, which is why we compare against strong classical baselines on identical inputs.
 
-\textbf{Error correction and mitigation.} Shor's code~\cite{shor1995scheme} was the first code to correct an arbitrary single-qubit error~\cite{nielsen2010qcqi}. Error-mitigation methods~\cite{temme2017mitigation} trade extra circuit runs for lower bias on near-term devices.
+\textbf{Error correction and mitigation.} Shor's code~\cite{shor1995scheme} was the first code to correct an arbitrary single-qubit error~\cite{nielsen2010qcqi}, but useful error correction needs many physical qubits per logical qubit and fault-tolerant gates. Error-mitigation methods~\cite{temme2017mitigation} instead trade extra circuit runs and classical post-processing for lower bias on near-term devices.
 
 %=====================================================================
 \section{Data and Problem Formulation}
@@ -100,7 +101,7 @@ $\phi_{kl}(x)$ & $(\pi-x_k)(\pi-x_l)$: joint effect, e.g.\ rush hour $\times$ sn
 $\ket{\phi(x)}=U_\phi\ket{\psi}$ & entangled, data-dependent representation \\
 $U(\theta)$ & trainable $R_ZR_YR_Z$ rotations and ring CNOTs \\
 measurement & $\langle Z_0\rangle$ estimated from shots \\
-classical decision & $\sigma(a\langle Z_0\rangle+b)>0.5$ $\Rightarrow$ re-time signals, advise routes \\
+classical decision & $P=\sigma(a\langle Z_0\rangle+b)$; $P>0.5$ $\Rightarrow$ re-time signals, plan detours with $P$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -122,7 +123,7 @@ With $L{=}3$ the model has \nparams{} parameters, \ncx{} CNOTs and depth \depth{
 
 \textbf{Baselines.} The \emph{standard VQC} encodes once, then applies two $R_YR_Z$ layers with linear CNOTs (26 parameters). It mirrors the textbook design. The \emph{quantum-kernel SVM} uses the fidelity kernel $K(x,x')=|\braket{\phi(bx)|\phi(bx')}|^2$ of a 2-repetition ZZ map, with bandwidth $b\in\{0.1,0.25,0.5,1\}$ and $C$ chosen by 3-fold cross-validation~\cite{shaydulin2022bandwidth}. Classical baselines are logistic regression, an RBF-SVM, a 200-tree random forest and a 16--16 MLP. They receive the hour as $(\sin,\cos)$ so that they are not disadvantaged.
 
-\textbf{Simulation.} Circuits run on an exact batched statevector simulator written in PyTorch. It matches Qiskit~\cite{qiskit2024} to within $\simdiff$ on random parameters. Noisy runs use Qiskit Aer.
+\textbf{Simulation.} Circuits run on an exact batched statevector simulator written in PyTorch. It matches Qiskit~\cite{qiskit2024} to within $\simdiff$ on random parameters. Noisy runs use Qiskit Aer (Section~\ref{sec:noise}).
 
 \begin{figure}[t]
 \centering
@@ -131,18 +132,28 @@ With $L{=}3$ the model has \nparams{} parameters, \ncx{} CNOTs and depth \depth{
 \label{fig:circuit}
 \end{figure}
 
-\subsection{Alternate-route recommendation as a QUBO}
-$N{=}8$ traffic streams with demands $d_i$ approach the city. $x_i{=}1$ diverts stream $i$ to the alternate road. Delay on each road grows with the square of its load, a quadratic simplification of the BPR curve~\cite{bpr1964}:
+\subsection{Detour planning driven by the prediction}
+\label{sec:qubo}
+Traffic reaches the corridor through $N{=}8$ on-ramps. Ramp $i$ carries a fixed share $s_i$ of the corridor volume, $s=(0.20,0.17,0.15,0.13,0.11,0.09,0.08,0.07)$; this split is an assumption, since the dataset has a single sensor. $x_i{=}1$ sends ramp $i$'s traffic on a detour road, so the detour carries the share $s^\top x$. In a traffic state with volume $V$ (in multiples of the \Thr{}~veh/h threshold) and highway capacity $C$, the delay grows with the square of each road's load, a quadratic simplification of the BPR curve~\cite{bpr1964}:
 \begin{equation}
-J(x)=\frac{(D-d^\top x)^2}{C_{\rm m}}+\frac{(d^\top x)^2}{C_{\rm a}}+\tau\, d^\top x+P\,x_e .
+J_C(x;V)=\frac{\big(V(1-s^\top x)\big)^2}{C}+\frac{(V s^\top x)^2}{C_{\rm a}}+\tau V s^\top x .
+\end{equation}
+The classifier does not predict the volume, only the probability $P$ that the hour is congested. The plan therefore minimises the \emph{expected} delay over the two states,
+\begin{equation}
+J(x)=P\,J_{C_{\rm b}}(x;V_{\rm b})+(1-P)\,J_{C_{\rm q}}(x;V_{\rm q})+\lambda\,x_e ,
 \label{eq:qubo}
 \end{equation}
-Here $D=\sum_i d_i$ (loads are normalised), $C_{\rm m}{=}0.55$ and $C_{\rm a}{=}0.35$ are road capacities, $\tau{=}0.15$ is the detour cost, and the penalty $P{=}2$ keeps the emergency-vehicle stream $e$ on the cleared main road. Expanding (\ref{eq:qubo}) gives $J=x^\top Qx+c$ because $x_i^2=x_i$. Substituting $x_i=(1-Z_i)/2$ yields the Ising cost Hamiltonian $H_C=\sum_i h_iZ_i+\sum_{i<j}J_{ij}Z_iZ_j$~\cite{lucas2014ising}. We verified both forms against the direct cost on all 256 plans (max.\ error $\qubodiff$). Demands are drawn from real rush-hour I-94 volumes, giving 30 instances.
+where $V_{\rm b}{=}\vBusyU$ and $V_{\rm q}{=}\vQuietU$ are the mean volumes of congested and free-flowing training hours (\vBusy{} and \vQuiet{}~veh/h), $C_{\rm b}{=}1$ and $C_{\rm q}{=}3$ model a highway near and far from capacity, $C_{\rm a}{=}0.6$ is the detour capacity and $\tau{=}0.8$ its extra travel time. The penalty $\lambda=1+2J(\mathbf 0)$ exceeds any possible saving and keeps a ramp $e$ that carries an emergency vehicle on the cleared highway. A classical gate runs the optimisation only when $P>0.5$; otherwise no detours are released. Expanding (\ref{eq:qubo}) gives $J=x^\top Qx+c$ because $x_i^2=x_i$, and $x_i=(1-Z_i)/2$ yields the Ising cost Hamiltonian $H_C=\sum_i h_iZ_i+\sum_{i<j}J_{ij}Z_iZ_j$~\cite{lucas2014ising}. Both forms match the direct cost on all 256 plans (max.\ error $\qubodiff$).
 
-QAOA prepares $\ket{\gamma,\beta}=\prod_{j=1}^{p}e^{-i\beta_j\sum X_i}e^{-i\gamma_j H_C}\ket{+}^{\otimes N}$. COBYLA minimises $\langle H_C\rangle$ from a linear-ramp start plus two random restarts~\cite{zhou2020qaoa}. With costs normalised to $[0,1]$ we report the approximation ratio $r=1-\langle \tilde H_C\rangle$. The best of 128 sampled plans is passed to a classical feasibility check before release.
+QAOA prepares $\ket{\gamma,\beta}=\prod_{j=1}^{p}e^{-i\beta_j\sum X_i}e^{-i\gamma_j H_C}\ket{+}^{\otimes N}$. COBYLA minimises $\langle H_C\rangle$ from a linear-ramp start plus two random restarts~\cite{zhou2020qaoa}. With costs normalised to $[0,1]$ we report the approximation ratio $r=1-\langle \tilde H_C\rangle$. Each sampled plan is scored classically, and the best of 256 samples is passed to a feasibility check before release. For the benchmark we draw 30 test hours that the VQC predicts congested, each with its own $P$ and most with an emergency vehicle on a random ramp.
 
-\subsection{Noise, mitigation and error correction}
-We run the trained VQC on Qiskit Aer with depolarising errors $p_2$ on CNOTs and $p_2/10$ on single-qubit gates. Depolarising noise shrinks $\langle Z_0\rangle$ by an approximately constant factor $f$. We estimate $f$ by least squares on 100 training snapshots and divide it out before the decision (\emph{rescaling}). For error correction we protect a qubit that carries an encoded traffic reading with the 3-qubit bit-flip and phase-flip codes and with Shor's 9-qubit code~\cite{shor1995scheme,nielsen2010qcqi}. Correction is coherent, using CNOTs and Toffolis. Each physical qubit suffers $X$, $Y$ or $Z$ with probability $p/3$ each. A residual logical $X$, $Y$ or $Z$ is revealed by exactly two of the test states $\ket{0},\ket{+},\ket{+i}$, so the logical error rate is $p_L=\tfrac12(f_0+f_++f_{+i})$, where $f$ is each test's failure rate.
+\textbf{End-to-end score.} For every test hour we plan from the model's $P$ and then compute the delay the plan would really have caused, $J_{C^\ast}(x;V^\ast)$, using the hour's real volume $V^\ast$ and real state ($C^\ast=C_{\rm b}$ if it was congested). Summed over all hours, we report the share of the largest possible delay reduction, $(J_{\rm none}-J_{\rm plan})/(J_{\rm none}-J_{\rm best})$, where $J_{\rm best}$ uses the best plan for the real traffic of each hour.
+
+\subsection{Hardware noise model and mitigation}
+\label{sec:noise}
+We simulate a device with all three main error sources at once, using Qiskit Aer: (i) depolarising gate errors of $2.5{\times}10^{-4}$ on 1-qubit gates and $7.5{\times}10^{-3}$ on CNOTs; (ii) $T_1/T_2$ thermal relaxation with $T_1{=}150\,\mu$s, $T_2{=}100\,\mu$s during every gate (36~ns and 500~ns) and during idle time, which ALAP scheduling makes explicit as delays; (iii) readout errors of 1.5\% per measurement (1.2~$\mu$s). These values are representative of current superconducting devices. The qubits are connected in a ring, so the classifier's ring CNOTs map directly, while the all-to-all $Z_iZ_j$ terms of QAOA need SWAPs (\qaoaCx{} CNOTs and depth \qaoaDepth{} at $p{=}2$ after compilation). A \emph{noise level} $k$ multiplies every error rate by $k$ and divides $T_1,T_2$ by $k$; $k{=}1$ is the profile above and $k{=}0$ the ideal simulator.
+
+We mitigate rather than correct errors. \emph{Readout correction} measures the $2{\times}2$ confusion matrix of the read-out qubit once and inverts it. \emph{Rescaling}: gate errors and decoherence shrink $\langle Z_0\rangle$ by a roughly constant factor $f$, which we estimate by least squares on 100 training snapshots and divide out before the decision. QAOA parameters are trained noise-free and then sampled on the noisy device, as one would with a fixed parameter schedule on hardware.
 
 %=====================================================================
 \section{Results}
@@ -187,18 +198,50 @@ Fig.~\ref{fig:ablation} varies one design choice at a time ($n{=}500$). Re-uploa
 \label{fig:ablation}
 \end{figure}
 
-\subsection{Hardware noise and shot budget}
-Fig.~\ref{fig:noise} shows that the classifier degrades gracefully. Accuracy is \noiseIdeal{} with exact noiseless probabilities, \noiseRawB{} at $p_2{=}1\%$ and \noiseRawD{} at $p_2{=}5\%$ with 1024 shots (differences below about 1\% are within shot noise), even though depolarising noise shrinks $\langle Z_0\rangle$ by $f{=}\shrinkB$ and $f{=}\shrinkD$ respectively. Accuracy survives because the learned bias $b$ is small: the decision boundary sits near $\langle Z_0\rangle\approx0$, and a uniform shrink does not move it. The \emph{probabilities} reported to operators are, however, pulled towards 0.5. The mean deviation from the noiseless probability at $p_2{=}5\%$ is \probErrRawD, and dividing by the calibrated $f$ reduces it to \probErrMitD{} (Fig.~\ref{fig:noise}, right). Accuracy needs only a modest number of shots: 16 shots give \shotsSixteen{} and 1024 shots give \shotsK.
+\subsection{Prediction to detours, scored against real traffic}
+Table~\ref{tab:e2e} and Fig.~\ref{fig:e2e} score each way of planning over all \eeHours{} test hours. Plans built from the VQC's prediction achieve \eeOurs\% of the largest possible delay reduction, i.e.\ they cut total delay by \eeSavedOurs\% where the best possible plans cut \eeSavedBest\%. This equals the classical classifiers (MLP \eeMLP\%, random forest \eeRF\%) and is far above a fixed plan that always assumes congestion (\eeAlways\%), which diverts traffic needlessly in \eeHrsAlways{} hours. A perfect classifier would reach \eeLabel\%, so most of the remaining gap comes from the classifier's errors, not from planning with only two traffic states. Accuracy therefore translates directly into delay: false alarms send traffic on an unnecessary detour, and missed congested hours leave the highway jammed.
+
+\begin{table}[t]
+\caption{End-to-end delay reduction over all test hours}
+\label{tab:e2e}
+\centering
+\footnotesize
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Planning from & of possible (\%) & delay cut (\%) \\
+\midrule
+No detours & 0 & 0 \\
+Fixed plan (always assume congested) & \eeAlways & \eeSavedAlways \\
+\textbf{Re-uploading VQC (ours)} & \textbf{\eeOurs} & \textbf{\eeSavedOurs} \\
+MLP & \eeMLP & \eeSavedMLP \\
+Random forest & \eeRF & \eeSavedRF \\
+Correct label (perfect classifier) & \eeLabel & \eeSavedLabel \\
+Best plan for the real traffic & 100 & \eeSavedBest \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{endtoend.png}
+\caption{Share of the largest possible delay reduction achieved by each planning policy, over all \eeHours{} test hours.}
+\label{fig:e2e}
+\end{figure}
+
+\subsection{Hardware noise}
+Fig.~\ref{fig:noise} runs both quantum modules on the noisy device. The classifier is robust. On 500 test hours with 1024 shots its accuracy is \nzAccZero{} without noise, \nzAccOne{} at $k{=}1$ and \nzMitFour{} at $k{=}4$ (differences below about 1\% are within shot noise), although the measured $\langle Z_0\rangle$ shrinks by $f{=}\nzShrinkOne$ and $f{=}\nzShrinkFour$. Accuracy survives because the learned bias $b$ is small: the decision boundary sits near $\langle Z_0\rangle\approx0$, and a uniform shrink does not move it. The probability $P$, however, is pulled towards 0.5, and $P$ is what the planner uses. Its mean error at $k{=}1$ is \nzErrRawOne{} raw, \nzErrRoOne{} after readout correction and \nzErrMitOne{} after rescaling as well; at $k{=}4$ the same steps reduce it from \nzErrRawFour{} to \nzErrMitFour. Because the gate keeps decisions intact, the end-to-end delay reduction on these hours barely moves (\nzSaveMitZero\% noise-free, \nzSaveMitOne\% at $k{=}1$, \nzSaveMitFour\% at $k{=}4$). Accuracy needs only a modest number of shots: 16 noise-free shots give \shotsSixteen{} and 1024 give \shotsK.
+
+QAOA suffers much more. Its circuit has \qaoaCx{} CNOTs after routing on the ring, against \ncx{} for the classifier. The approximation ratio falls from \qnArZero{} (noise-free) to \qnArHalf{} at $k{=}0.5$, \qnArOne{} at $k{=}1$ and \qnArFour{} at $k{=}4$, approaching random sampling (\arR). Because every sample is scored classically and the best of 256 is kept, the released plan stays good: on \loopN{} busy test hours it was the exact optimum in \loopSameIdeal\% of cases noise-free and \loopSameNoisy\% at $k{=}1$. The other plans were near-ties, whose real delay differed from the exact plan's by less than \loopDiff\%. At 8 ramps, however, random sampling would also find such near-ties.
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.85\textwidth]{noise.png}
-\caption{Left: accuracy under depolarising noise. Middle: accuracy vs.\ shots (noiseless). Right: mean error of the predicted probability, raw and with the one-parameter rescaling.}
+\caption{Simulated device noise (gate errors, $T_1/T_2$ decoherence incl.\ idle time, readout errors), scaled by the noise level $k$ ($k{=}1$: typical current device). Left: classifier accuracy. Middle: mean error of the predicted probability $P$, raw, readout-corrected, and readout-corrected and rescaled. Right: QAOA ($p{=}2$) approximation ratio, with random sampling for reference.}
 \label{fig:noise}
 \end{figure*}
 
 \subsection{Latency against the one-second budget}
-Table~\ref{tab:latency} lists the median single-snapshot latency. Every model, including Aer with 1024 shots (\latAer{}~ms), fits comfortably within 1000~ms on a laptop CPU. These are simulator timings. Cloud hardware adds queueing and network round-trips of seconds to minutes, which currently rules out on-line use on real devices.
+Table~\ref{tab:latency} lists the median single-snapshot latency. Every stage, including the classifier on the noisy device model (\latNoisy{}~ms with transpilation) and QAOA training for one detour plan (\latQaoa{}~ms at $p{=}1$), fits within 1000~ms on a laptop CPU. These are simulator timings. Cloud hardware adds queueing and network round-trips of seconds to minutes, which currently rules out on-line use on real devices.
 
 \begin{table}[t]
 \caption{Median (p95) latency per snapshot, ms}
@@ -212,18 +255,21 @@ Stage & median & p95 \\
 Preprocessing (classical) & \latPre & \latpPre \\
 VQC, exact simulator & \latVqc & \latpVqc \\
 VQC, Aer, 1024 shots & \latAer & \latpAer \\
+VQC, noisy device, 1024 shots & \latNoisy & \latpNoisy \\
 Quantum-kernel SVM & \latQk & \latpQk \\
 Random forest & \latRf & \latpRf \\
 MLP & \latMlp & \latpMlp \\
+Detour plan, exact search & \latExact & \latpExact \\
+Detour plan, QAOA $p{=}1$ & \latQaoa & \latpQaoa \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Route optimisation with QAOA}
-Over 30 real-demand instances (Table~\ref{tab:qaoa}, Fig.~\ref{fig:qaoa}), QAOA raises the approximation ratio from \arR{} (uniform sampling) to \arOne{} at $p{=}1$ and \arFour{} at $p{=}4$. The probability of a plan within 2\% of the optimum rises from \pnearR\% to \pnearFour\%. In every instance the best of 128 samples was the exact optimum (mean gap \gapFour\%), but at $N{=}8$ even 128 uniform samples would very likely contain a near-optimal plan. Exact enumeration of the $2^8$ plans takes \msEx{}~ms, while QAOA parameter training takes \msOne--\msFour{}~ms in simulation. At this size QAOA has no practical advantage. Its value is as a hybrid template that would apply to larger regional sub-problems where exhaustive search is impossible.
+\subsection{Detour optimisation with QAOA}
+Over the 30 busy test hours (Table~\ref{tab:qaoa}, Fig.~\ref{fig:qaoa}), noise-free QAOA raises the approximation ratio from \arR{} (uniform sampling) to \arOne{} at $p{=}1$ and \arFour{} at $p{=}4$. The probability of a plan within 2\% of the optimum rises from \pnearR\% to \pnearFour\%. The best of 256 samples was within \gapFour\% of the optimum on average, but at $N{=}8$ even 256 uniform samples would very likely contain a near-optimal plan. Exact enumeration of the $2^8$ plans takes \msEx{}~ms, while QAOA parameter training takes \msOne--\msFour{}~ms in simulation. At this size QAOA has no practical advantage. Its value is as a hybrid template that would apply to larger regional sub-problems where exhaustive search is impossible.
 
 \begin{table}[t]
-\caption{Route optimisation over 30 instances (mean)}
+\caption{Detour optimisation over 30 busy test hours (mean)}
 \label{tab:qaoa}
 \centering
 \footnotesize
@@ -251,27 +297,19 @@ Simulated annealing & -- & -- & \gapSa & \msSa \\
 \label{fig:qaoa}
 \end{figure}
 
-\subsection{Error-protected quantum output}
-Fig.~\ref{fig:qec} shows the logical error rate under depolarising noise. Each 3-qubit code lets one error type through while exposing three qubits, so both are \emph{worse} than no protection (at $p{=}1\%$: \qecBB{} vs.\ \qecUB). Shor's code corrects every single-qubit error, giving $p_L\propto p^2$ and \qecSB{} at $p{=}1\%$, i.e.\ \shorGain$\times$ fewer errors. Above roughly $p\approx 8\%$ (its pseudo-threshold under this noise model) it loses to the bare qubit. The price is 9 physical qubits per logical qubit: 36 for our VQC and 72 for the 8-stream QAOA, before repeated syndrome rounds.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.85\columnwidth]{qec.png}
-\caption{Logical vs.\ physical error rate under depolarising noise (Qiskit Aer, 20k shots per point).}
-\label{fig:qec}
-\end{figure}
-
 %=====================================================================
 \section{Discussion}
-\textbf{What should be quantum?} Sensor ingestion, cleaning, feature engineering, thresholds, feasibility checks and actuation must remain classical, because they are safety-critical and need deterministic, auditable behaviour. The quantum candidates are the pattern-recognition model and the combinatorial sampler. Our results show that a carefully encoded 4-qubit VQC can \emph{match}, but not beat, classical models on this low-dimensional task. QAOA likewise produces good but not better route plans at 8 variables. Following~\cite{bowles2024better}, we treat this parity as the honest outcome of a fair comparison, not as a failure.
+\textbf{What should be quantum?} Sensor ingestion, cleaning, feature engineering, thresholds, feasibility checks and actuation must remain classical, because they are safety-critical and need deterministic, auditable behaviour. The quantum candidates are the pattern-recognition model and the combinatorial sampler. Our results show that a carefully encoded 4-qubit VQC can \emph{match}, but not beat, classical models on this low-dimensional task, and that this parity carries through to the delay saved by the plans it drives. QAOA likewise produces good but not better detour plans at 8 variables, and on a noisy device its advantage over random sampling largely disappears. Following~\cite{bowles2024better}, we treat this parity as the honest outcome of a fair comparison, not as a failure.
 
-\textbf{Design lessons.} (i) Feature and encoding choices come first: a single basis-encoded day-type qubit carries most of the signal, and a periodic hour angle is free. (ii) Re-uploading with trainable scaling beats adding entangling feature maps. (iii) Depolarising noise mainly miscalibrates probabilities rather than flipping decisions, and a single calibrated rescaling largely repairs it. (iv) Error correction must match the noise. Only a code that handles $X$, $Y$ and $Z$ helps under depolarising noise, at a 9$\times$ qubit cost.
+\textbf{Design lessons.} (i) Feature and encoding choices come first: a single basis-encoded day-type qubit carries most of the signal, and a periodic hour angle is free. (ii) Re-uploading with trainable scaling beats adding entangling feature maps. (iii) Noise mainly miscalibrates probabilities rather than flipping decisions. This matters once the probability drives a downstream optimiser, and readout correction plus one calibrated rescaling largely repair it. (iv) Shallow circuits tolerate today's noise; deep, densely coupled ones such as QAOA on a sparsely connected chip do not.
 
-\textbf{Limitations.} All results come from simulators. Our route model is a stylised two-road network. The data come from a single corridor, and the binary target is coarse. Hardware queueing latency, readout error and fault-tolerant overheads are not measured.
+\textbf{Why not error correction?} Our coursework experiments implemented the 3-qubit and Shor 9-qubit codes~\cite{shor1995scheme}. Protecting the classifier this way would need at least 36 physical qubits plus ancillas, and its arbitrary-angle rotations cannot be applied transversally to encoded qubits, which requires fault-tolerant non-Clifford gates. Once the encoding and syndrome circuits are themselves noisy, small codes also lose much of their benefit. For near-term ITS modules, error mitigation is therefore the appropriate tool.
+
+\textbf{Limitations.} All results come from simulators, and the noise profile is representative rather than calibrated to a specific device. The detour model is a stylised two-road network with assumed ramp shares and two traffic states. The data come from a single corridor, and the binary target is coarse. QAOA parameters are trained noise-free, and hardware queueing latency is not measured.
 
 %=====================================================================
 \section{Conclusion}
-QuantumITS is an end-to-end, reproducible hybrid pipeline for a national ITS. A data re-uploading VQC predicted congestion on real 2017--18 traffic with \accOursM{} accuracy, on par with the best classical baselines and far above a textbook VQC. QAOA solved a congestion-aware QUBO for alternate routing, and Shor's code was the only option that protected a quantum output under realistic noise. Quantum components should for now be deployed as benchmarked modules behind classical decision and safety layers. Future work will test real hardware, graph-structured multi-junction inputs on more qubits, and regional QAOA sub-problems with 50+ variables.
+QuantumITS is an end-to-end, reproducible hybrid pipeline for a national ITS. A data re-uploading VQC predicted congestion on real 2017--18 traffic with \accOursM{} accuracy, on par with the best classical baselines and far above a textbook VQC. Its probability drove a detour QUBO solved with QAOA, and the resulting plans achieved \eeOurs\% of the possible delay reduction on the traffic that really occurred. Under realistic device noise the classifier stayed accurate and mitigation restored its probabilities, while QAOA degraded towards random sampling. Quantum components should for now be deployed as benchmarked modules behind classical decision and safety layers. Future work will test real hardware, graph-structured multi-junction inputs on more qubits, and regional QAOA sub-problems with 50+ variables.
 
 \begin{thebibliography}{00}
 \bibitem{preskill2018nisq} J. Preskill, ``Quantum computing in the NISQ era and beyond,'' \emph{Quantum}, vol. 2, p. 79, 2018.
